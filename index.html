@@ -1,289 +1,109 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>On-Device AI 物件辨識</title>
-    
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+// App.js
+// 離線冷笑話 App（React Native + Expo）
+// 功能：內建至少 30 則中文冷笑話，完全離線，每次按鈕隨機顯示一則
 
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #000;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            overflow: hidden; /* 防止捲動 */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-        }
+import React, { useState } from 'react';
+import { SafeAreaView, View, Text, TouchableOpacity, StyleSheet, StatusBar, Platform, Clipboard, Alert } from 'react-native';
 
-        /* 視訊與畫布的容器 */
-        #cam-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: #111;
-        }
+const JOKES = [
+  '我告訴冰箱一個秘密，現在它一直封存。',
+  '有一天鉛筆跑去旅行，結果被筆芯留在原地。',
+  '魚開派對，結果沒人帶泡泡。',
+  '冰淇淋和太陽相遇，冰淇淋說：別靠太近，我會融化的。',
+  '小明的床很會說話，因為它每天都在發牢騷（床怨）。',
+  '月亮去看牙醫，因為它有一顆壞星（壞齒）。',
+  '蘋果對香蕉說：你真滑稽。香蕉回：誰才滑稽？（滑稽=滑皮）',
+  '為什麼數學老師喜歡花園？因為有很多根（根號）。',
+  '影子跟太陽吵架，結果被懲罰：曬黑。',
+  '狗跑進音樂教室，老師說：你有節奏感（汪）。',
+  '椅子去旅行，結果坐下來休息。',
+  '手機去健身房，最後只學會滑手機。',
+  '電腦吃太多零食，結果中毒了（玩笑）。',
+  '番茄和黃瓜比跑步，番茄先紅了。',
+  '為什麼書喜歡上床？因為它想被翻頁。',
+  '月亮請假了，因為它要滿（月）休假。',
+  '為什麼鐘錶總是很忙？因為它分秒必爭。',
+  '電燈對燈泡說：你真亮眼。',
+  '為什麼鉛筆不會哭？因為它有橡皮擦掉情緒。',
+  '咖啡和茶比賽，咖啡贏了，因為它比較提神。',
+  '葡萄看電影流淚，因為片尾有葡萄乾（過感動）。',
+  '雲去上班遲到，結果被雇主雲（運）走。',
+  '為什麼植物喜歡社交？因為它們有根基。',
+  '海豚去唱歌比賽，結果一鳴驚人（驚浪）。',
+  '為什麼音符去旅行？因為它想找到節奏。',
+  '如果時間會寫日記，它一定會記得每一刻。',
+  '為什麼燈塔總是孤單？因為它只會發光，不會聊天。',
+  '蛋糕開派對，大家都搶著吃，最後只剩碎心情。',
+  '為什麼山很有耐心？因為它一直在等日出。',
+  '牙刷向牙膏告白：你是我的磨擦，讓我每天都不孤單。',
+  '番茄哭了，因為它被壓成醬（感情）。',
+  '為什麼筆記本很會記東西？因為它每天都有頁。',
+  '月亮上班羨慕太陽，因為太陽有光環（太陽光）。',
+  '如果鉛筆旅行，會帶幾支？答案：看你畫幾幅。',
+  '為什麼鬧鐘討厭周末？因為它要被按掉。'
+];
 
-        /* 影像與 Canvas 重疊 */
-        video, canvas {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* 讓畫面填滿手機螢幕 */
-        }
+export default function App() {
+  const [index, setIndex] = useState(() => Math.floor(Math.random() * JOKES.length));
 
-        /* 介面覆蓋層 (UI Overlay) */
-        #ui-layer {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 10;
-            pointer-events: none; /* 讓點擊穿透到下方 */
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 20px;
-            box-sizing: border-box;
-        }
+  function showRandom() {
+    if (JOKES.length === 0) return;
+    let next = Math.floor(Math.random() * JOKES.length);
+    // 避免重複同一則（若只有一則則允許）
+    if (JOKES.length > 1) {
+      while (next === index) {
+        next = Math.floor(Math.random() * JOKES.length);
+      }
+    }
+    setIndex(next);
+  }
 
-        /* 狀態列 */
-        .status-bar {
-            background: rgba(0, 0, 0, 0.6);
-            color: #00ffcc;
-            padding: 10px 15px;
-            border-radius: 20px;
-            font-size: 14px;
-            backdrop-filter: blur(5px);
-            align-self: flex-start;
-            pointer-events: auto;
-        }
+  function copyToClipboard() {
+    const joke = JOKES[index];
+    try {
+      Clipboard.setString(joke);
+      Alert.alert('已複製到剪貼簿');
+    } catch (e) {
+      Alert.alert('複製失敗');
+    }
+  }
 
-        /* 啟動按鈕 / 載入畫面 */
-        #start-screen {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            z-index: 20;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            color: white;
-        }
+  return (
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="dark-content" />
+      <View style={styles.container}>
+        <Text style={styles.title}>離線冷笑話</Text>
 
-        button {
-            background: #007aff;
-            color: white;
-            border: none;
-            padding: 15px 40px;
-            font-size: 18px;
-            border-radius: 30px;
-            cursor: pointer;
-            margin-top: 20px;
-            font-weight: bold;
-            box-shadow: 0 4px 15px rgba(0,122,255,0.4);
-            transition: transform 0.2s;
-        }
+        <View style={styles.card}>
+          <Text style={styles.joke} selectable>{JOKES[index]}</Text>
+        </View>
 
-        button:active {
-            transform: scale(0.95);
-        }
+        <View style={styles.row}>
+          <TouchableOpacity style={[styles.button, styles.btnPrimary]} onPress={showRandom} activeOpacity={0.8}>
+            <Text style={styles.btnText}>換一則</Text>
+          </TouchableOpacity>
 
-        button:disabled {
-            background: #555;
-            color: #888;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
+          <TouchableOpacity style={[styles.button, styles.btnSecondary]} onPress={copyToClipboard} activeOpacity={0.8}>
+            <Text style={styles.btnText}>複製</Text>
+          </TouchableOpacity>
+        </View>
 
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #00ffcc;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-            display: none; /* 預設隱藏 */
-        }
+        <Text style={styles.hint}>完全離線、內建笑話。長按笑話可選取文字。</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* 偵測框樣式設定 (由 JS 動態繪製，此處為文字樣式) */
-        .prediction-text {
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-    </style>
-</head>
-<body>
-
-    <div id="cam-container">
-        <video id="video" playsinline muted autoplay></video>
-        <canvas id="canvas"></canvas>
-    </div>
-
-    <div id="ui-layer">
-        <div class="status-bar" id="status">等待啟動...</div>
-    </div>
-
-    <div id="start-screen">
-        <div class="loader" id="loader"></div>
-        <h2 id="loading-text">準備載入 AI 模型</h2>
-        <p style="font-size: 0.9em; color: #aaa; margin: 0 20px;">
-            請允許相機權限。<br>模型載入後可離線使用。
-        </p>
-        <button id="btn-start">開始辨識</button>
-    </div>
-
-    <script>
-        // DOM 元素
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const btnStart = document.getElementById('btn-start');
-        const statusText = document.getElementById('status');
-        const startScreen = document.getElementById('start-screen');
-        const loader = document.getElementById('loader');
-        const loadingText = document.getElementById('loading-text');
-
-        let model = undefined;
-        let isDetecting = false;
-
-        // 1. 初始化：綁定按鈕事件
-        btnStart.addEventListener('click', async () => {
-            btnStart.style.display = 'none'; // 隱藏按鈕
-            loader.style.display = 'block';  // 顯示讀取圈圈
-            loadingText.innerText = "正在載入 AI 模型 (約 2-5 MB)...";
-            
-            try {
-                await initAI();
-            } catch (error) {
-                console.error(error);
-                loadingText.innerText = "錯誤: " + error.message;
-                loader.style.display = 'none';
-                btnStart.style.display = 'inline-block';
-                btnStart.innerText = "重試";
-            }
-        });
-
-        // 2. 核心初始化函式
-        async function initAI() {
-            // A. 載入 COCO-SSD 模型
-            // 此模型會自動下載並存入瀏覽器快取
-            model = await cocoSsd.load();
-            loadingText.innerText = "模型載入完成，正在啟動相機...";
-
-            // B. 啟動相機
-            await setupCamera();
-            
-            // C. 調整 Canvas 尺寸並開始偵測
-            startScreen.style.display = 'none'; // 隱藏啟動畫面
-            statusText.innerText = "AI 運作中 - On Device";
-            
-            resizeCanvas();
-            predictLoop();
-
-            // 監聽視窗大小改變 (旋轉手機時)
-            window.addEventListener('resize', resizeCanvas);
-        }
-
-        // 3. 設定相機
-        async function setupCamera() {
-            const constraints = {
-                audio: false,
-                video: {
-                    facingMode: 'environment', // 優先使用後鏡頭
-                    // 為了效能，不要設定太高的解析度，640x480 對手機辨識來說足夠
-                    width: { ideal: 640 }, 
-                    height: { ideal: 480 }
-                }
-            };
-
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            video.srcObject = stream;
-
-            return new Promise((resolve) => {
-                video.onloadedmetadata = () => {
-                    resolve(video);
-                };
-            });
-        }
-
-        // 4. 調整 Canvas 尺寸以匹配 Video 顯示大小
-        function resizeCanvas() {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            
-            // 因為 CSS 用 object-fit: cover 強制填滿，
-            // 這裡我們讓 Canvas 的解析度跟隨影片原始解析度，
-            // CSS 會負責把 Canvas 拉伸到跟 Video 一樣大。
-        }
-
-        // 5. 預測循環 (Loop)
-        async function predictLoop() {
-            if (!model) return;
-
-            // 進行預測
-            // detect 參數：影像來源, maxNumBoxes, minScore
-            const predictions = await model.detect(video, 20, 0.5);
-
-            // 繪製結果
-            drawPredictions(predictions);
-
-            // 使用 requestAnimationFrame 達到最順暢的 FPS
-            requestAnimationFrame(predictLoop);
-        }
-
-        // 6. 繪製方框與標籤
-        function drawPredictions(predictions) {
-            // 清空畫布
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            const font = "16px sans-serif";
-            ctx.font = font;
-            ctx.textBaseline = "top";
-
-            predictions.forEach(prediction => {
-                const [x, y, width, height] = prediction['bbox'];
-                const text = prediction['class'];
-                const score = Math.round(prediction['score'] * 100) + '%';
-
-                // 畫框框
-                ctx.strokeStyle = "#00FFFF";
-                ctx.lineWidth = 4;
-                ctx.strokeRect(x, y, width, height);
-
-                // 畫背景標籤 (半透明黑底)
-                const textWidth = ctx.measureText(text + " " + score).width;
-                const textHeight = 16; // 根據字體大小估算
-                ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-                ctx.fillRect(x, y, textWidth + 10, textHeight + 10);
-
-                // 畫文字
-                ctx.fillStyle = "#FFFFFF";
-                ctx.fillText(text + " - " + score, x + 5, y + 5);
-            });
-        }
-    </script>
-</body>
-</html>
-
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, padding: 20, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 28, fontWeight: '700', marginBottom: 20 },
+  card: { width: '100%', minHeight: 160, backgroundColor: '#f7f7f7', borderRadius: 12, padding: 18, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#eee' },
+  joke: { fontSize: 18, lineHeight: 28, textAlign: 'center' },
+  row: { flexDirection: 'row', marginTop: 20, width: '100%', justifyContent: 'space-between' },
+  button: { flex: 1, paddingVertical: 14, marginHorizontal: 6, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  btnPrimary: { backgroundColor: '#2d9cdb' },
+  btnSecondary: { backgroundColor: '#95a5a6' },
+  btnText: { color: 'white', fontWeight: '600' },
+  hint: { marginTop: 18, fontSize: 12, color: '#888' }
+});
